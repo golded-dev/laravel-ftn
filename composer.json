@@ -1,0 +1,45 @@
+{
+    "$schema": "https://getcomposer.org/schema.json",
+    "name": "golded-dev/laravel-ftn",
+    "description": "Shared FTN message-base reader contracts and value objects.",
+    "license": "MIT",
+    "type": "library",
+    "require": {
+        "php": "^8.4"
+    },
+    "require-dev": {
+        "odinns/coding-style": "^1.0.1",
+        "odinns/phpstan-pest-this": "^1.0",
+        "pestphp/pest": "^4.4",
+        "phpstan/phpstan": "^2.1",
+        "rector/rector": "^2.2"
+    },
+    "autoload": {
+        "psr-4": {
+            "Golded\\Ftn\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Golded\\Ftn\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "pest",
+        "test:types": "phpstan analyse",
+        "test:refactor": "rector process --dry-run",
+        "test:all": [
+            "@test",
+            "@test:types",
+            "@test:refactor"
+        ]
+    },
+    "config": {
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        },
+        "sort-packages": true
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}
