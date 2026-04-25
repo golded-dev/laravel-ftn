@@ -11,7 +11,7 @@
 - Concrete message-base readers belong elsewhere unless the task explicitly asks to add one here.
 - `src/Contracts` defines reader/locator interfaces.
 - `src/ParsedArea.php`, `src/ParsedMessage.php`, and `src/ReaderOptions.php` are lightweight immutable DTOs.
-- `src/Support` is for small, dependency-free helpers around FTN text, control lines, charsets, null-padded fields, and synthetic IDs.
+- `src/Support` is for small, dependency-free helpers around FTN text, control lines, charsets, mojibake repair, null-padded fields, and synthetic IDs.
 - Avoid runtime dependencies. Right now this package requires only PHP. Keep it that way unless there is a real reason.
 
 ## Coding Style
@@ -29,10 +29,12 @@
 - Normalize line endings for message bodies, but avoid destroying meaningful control-line content unless the caller asked for display text.
 - Treat `MSGID` as external identity when present; use synthetic IDs only as a fallback.
 - Old encodings are part of the domain, not a bug. Preserve existing aliases when adding charset handling.
+- Mojibake repair is a helper, not app policy. Keep UI toggles, storage decisions, and per-area defaults outside this package.
 
 ## Tests And Quality Gates
 - Run the focused test first when touching a narrow helper:
   - `vendor/bin/pest tests/Unit/CharsetDetectorTest.php`
+  - `vendor/bin/pest tests/Unit/MojibakeRepairerTest.php`
 - Run the full suite before handing off code changes:
   - `composer test:all`
 - The Composer scripts are:

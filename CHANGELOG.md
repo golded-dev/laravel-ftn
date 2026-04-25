@@ -4,6 +4,13 @@ Notable changes to `golded-dev/laravel-ftn`.
 
 This project uses semantic versioning.
 
+## 1.1.0 - 2026-04-25
+
+### Added
+
+- Add `MojibakeRepairer` and `MojibakeRepairResult` for cautious FTN text repair.
+- Add coverage for DOS glyph damage, UTF-8-as-Latin-1 damage, RFC 2047 encoded words, and low-confidence no-op behavior.
+
 ## 1.0.0 - 2026-04-25
 
 Initial stable release.

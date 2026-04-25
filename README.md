@@ -22,6 +22,7 @@ Requires PHP 8.4+.
 - `ParsedArea`: readonly value object for message area metadata.
 - `ReaderOptions`: shared reader options.
 - `CharsetDetector`: detects FTN charset kludges such as `CHRS` and `CHARSET`.
+- `MojibakeRepairer`: cautiously repairs common FTN text damage.
 - `ControlLines`: extracts selected FTN control lines.
 - `Text`: helper methods for null-padded fields, body normalization, encoding conversion, and synthetic IDs.
 
@@ -124,6 +125,22 @@ $charset = CharsetDetector::detect("\x01CHRS: MYSTERY\nBody", 'CP437');
 
 // CP437
 ```
+
+## Mojibake Repair
+
+FTN messages sometimes arrive as readable bytes wearing the wrong glyph costume. `MojibakeRepairer` handles the common, boring cases without deciding app policy for you.
+
+```php
+use Golded\Ftn\Support\MojibakeRepairer;
+
+$result = MojibakeRepairer::repair('Bruger m°de');
+
+$result->text; // Bruger møde
+$result->changed; // true
+$result->confidence; // 0.0-1.0
+```
+
+The helper is conservative. It repairs common DOS glyph damage, UTF-8-as-Latin-1 damage, and RFC 2047 encoded words. It does not decide when a UI should apply repairs, expose toggles, or rewrite stored source text.
 
 ## Text Helpers
 
