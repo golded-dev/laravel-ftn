@@ -2,8 +2,25 @@
     "$schema": "https://getcomposer.org/schema.json",
     "name": "golded-dev/laravel-ftn",
     "description": "Shared FTN message-base reader contracts and value objects.",
+    "keywords": [
+        "fidonet",
+        "ftn",
+        "golded",
+        "message-base",
+        "parser"
+    ],
+    "homepage": "https://github.com/golded-dev/laravel-ftn",
     "license": "MIT",
     "type": "library",
+    "authors": [
+        {
+            "name": "GoldED.dev contributors"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/golded-dev/laravel-ftn/issues",
+        "source": "https://github.com/golded-dev/laravel-ftn"
+    },
     "require": {
         "php": "^8.4"
     },
