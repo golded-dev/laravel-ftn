@@ -1,10 +1,10 @@
 # Laravel FTN
 
-Shared FTN/FidoNet message-base reader contracts, value objects, and small parsing helpers for PHP 8.4.
+Shared FTN/FidoNet reader contracts, value objects, and small parsing helpers for PHP 8.4.
 
-This package gives concrete FTN reader packages the same basic vocabulary.
+Concrete reader packages use this as their common language.
 
-It does not read Squish, JAM, Hudson, or any other message base by itself. That is the point. This is the boring bit everything else can agree on.
+It does not read Squish, JAM, Hudson, or any other message base by itself. That is deliberate. This package is the shared core, not the reader.
 
 ## Installation
 
@@ -22,7 +22,7 @@ Requires PHP 8.4+.
 - `ParsedArea`: readonly value object for message area metadata.
 - `ReaderOptions`: shared reader options.
 - `CharsetDetector`: detects FTN charset kludges such as `CHRS` and `CHARSET`.
-- `MojibakeRepairer`: cautiously repairs common FTN text damage.
+- `MojibakeRepairer`: repairs common FTN mojibake when the signal is strong enough.
 - `ControlLines`: extracts selected FTN control lines.
 - `Text`: helper methods for null-padded fields, body normalization, encoding conversion, and synthetic IDs.
 
@@ -33,7 +33,7 @@ Requires PHP 8.4+.
 - No database models.
 - No queues, commands, config publishing, or framework bootstrapping.
 
-If you need a real reader, build it in a package that depends on this one. This is the contract layer, not the whole archaeology department.
+If you need a real reader, build it in a package that depends on this one.
 
 ## Reading Messages
 
@@ -82,7 +82,7 @@ $options = new ReaderOptions(
 );
 ```
 
-`CP850` is the default fallback because old FTN message bases do not care about your modern UTF-8 feelings.
+`CP850` is the default fallback because old FTN message bases are not UTF-8-first.
 
 ## Parsed Messages
 
@@ -128,7 +128,7 @@ $charset = CharsetDetector::detect("\x01CHRS: MYSTERY\nBody", 'CP437');
 
 ## Mojibake Repair
 
-FTN messages sometimes arrive as readable bytes wearing the wrong glyph costume. `MojibakeRepairer` handles the common, boring cases without deciding app policy for you.
+FTN messages often contain text decoded through the wrong charset. `MojibakeRepairer` fixes the common cases when the repaired text clearly scores better than the original.
 
 ```php
 use Golded\Ftn\Support\MojibakeRepairer;
@@ -140,7 +140,9 @@ $result->changed; // true
 $result->confidence; // 0.0-1.0
 ```
 
-The helper is conservative. It repairs common DOS glyph damage, UTF-8-as-Latin-1 damage, and RFC 2047 encoded words. It does not decide when a UI should apply repairs, expose toggles, or rewrite stored source text.
+It handles DOS glyph damage, UTF-8-as-Latin-1 damage, and RFC 2047 encoded words.
+
+It does not decide when a UI should apply repairs, expose toggles, or rewrite stored source text. That belongs in the consuming app.
 
 ## Text Helpers
 
@@ -153,7 +155,7 @@ $utf8 = Text::toUtf8($rawSubject, 'CP850');
 $id = Text::syntheticId($from, $to, $subject, $date, $body);
 ```
 
-Use these helpers instead of scattering string surgery through concrete readers.
+Use these helpers instead of scattering string parsing through concrete readers.
 
 ## Control Lines
 
