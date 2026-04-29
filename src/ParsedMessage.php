@@ -26,5 +26,7 @@ final readonly class ParsedMessage
         public ?string $areaName = null,
         public ?int $areaSortOrder = null,
         public ?string $areaMetaKey = null,
+        public ?MessageControlLines $controlLines = null,
+        public ?MessageProvenance $provenance = null,
     ) {}
 }

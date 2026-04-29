@@ -4,6 +4,19 @@ Notable changes to `golded-dev/laravel-ftn`.
 
 This project uses semantic versioning.
 
+## 1.2.0 - 2026-04-29
+
+### Added
+
+- Add `FtnAddress` for full FTN address parsing and formatting.
+- Add control-line DTOs and `ControlLines::parseMessage()` for kludges, seen-by, path, tearline, origin, and origin address metadata.
+- Add message source, provenance, writer option, and outgoing message DTOs.
+- Add `MessageSourceCatalog` and `MessageWriter` contracts.
+
+### Changed
+
+- Extend `ParsedMessage` with optional control-line metadata and provenance fields.
+
 ## 1.1.1 - 2026-04-25
 
 ### Changed

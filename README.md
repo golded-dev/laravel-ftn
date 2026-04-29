@@ -17,10 +17,17 @@ Requires PHP 8.4+.
 ## What You Get
 
 - `MessageBaseReader`: interface for classes that read messages from a source path.
+- `MessageSourceCatalog`: interface for classes that list readable message sources.
+- `MessageWriter`: interface for classes that write outgoing messages.
 - `MessageSourceLocator`: interface for resolving a message source path.
+- `FtnAddress`: readonly value object for full FTN addresses.
 - `ParsedMessage`: readonly value object for normalized message data.
 - `ParsedArea`: readonly value object for message area metadata.
+- `OutgoingMessage`: readonly value object for messages handed to writers.
 - `ReaderOptions`: shared reader options.
+- `WriterOptions`: shared writer options.
+- `MessageControlLines`: parsed FTN control-line metadata.
+- `MessageProvenance`: source metadata for imported messages.
 - `CharsetDetector`: detects FTN charset kludges such as `CHRS` and `CHARSET`.
 - `MojibakeRepairer`: repairs common FTN mojibake when the signal is strong enough.
 - `ControlLines`: extracts selected FTN control lines.
@@ -29,6 +36,7 @@ Requires PHP 8.4+.
 ## What You Do Not Get
 
 - No concrete message-base reader.
+- No concrete message writer.
 - No Laravel service provider.
 - No database models.
 - No queues, commands, config publishing, or framework bootstrapping.
@@ -72,6 +80,38 @@ final class ExampleReader implements MessageBaseReader
 }
 ```
 
+Use `MessageSourceCatalog` when a reader package can list areas, folders, or other readable sources:
+
+```php
+<?php
+
+declare(strict_types=1);
+
+use Golded\Ftn\Contracts\MessageSourceCatalog;
+use Golded\Ftn\MessageSource;
+use Golded\Ftn\ReaderOptions;
+
+final class ExampleCatalog implements MessageSourceCatalog
+{
+    /**
+     * @return iterable<MessageSource>
+     */
+    public function sources(string $path, ?ReaderOptions $options = null): iterable
+    {
+        yield new MessageSource(
+            sourceType: 'example',
+            path: $path.'/general',
+            code: 'GENERAL',
+            name: 'General',
+            sortOrder: 10,
+            metaKey: 'example:general',
+        );
+    }
+}
+```
+
+Consumers should depend on the contracts and DTOs, not on a concrete storage format.
+
 ## Reader Options
 
 ```php
@@ -83,6 +123,23 @@ $options = new ReaderOptions(
 ```
 
 `CP850` is the default fallback because old FTN message bases are not UTF-8-first.
+
+## FTN Addresses
+
+```php
+use Golded\Ftn\FtnAddress;
+
+$address = FtnAddress::fromString('2:236/77.1@fidonet');
+
+$address->zone; // 2
+$address->net; // 236
+$address->node; // 77
+$address->point; // 1
+$address->domain; // fidonet
+$address->toString(); // 2:236/77.1@fidonet
+```
+
+`fromString()` throws when the address is invalid. `tryFromString()` returns `null`.
 
 ## Parsed Messages
 
@@ -105,6 +162,41 @@ $message = new ParsedMessage(
     areaName: 'Netmail',
 );
 ```
+
+Reader packages may attach `MessageControlLines` and `MessageProvenance` when the source format exposes them.
+
+## Writing Messages
+
+`MessageWriter` is a contract only. This package defines the shape of outgoing messages, not how a format stores them.
+
+```php
+<?php
+
+declare(strict_types=1);
+
+use Golded\Ftn\Contracts\MessageWriter;
+use Golded\Ftn\OutgoingMessage;
+use Golded\Ftn\WriterOptions;
+
+final class ExampleWriter implements MessageWriter
+{
+    /**
+     * @param iterable<OutgoingMessage> $messages
+     */
+    public function write(string $path, iterable $messages, ?WriterOptions $options = null): int
+    {
+        $written = 0;
+
+        foreach ($messages as $message) {
+            $written++;
+        }
+
+        return $written;
+    }
+}
+```
+
+Concrete packages own charset conversion, wrapping, storage rules, and format details.
 
 ## Charset Detection
 
@@ -166,6 +258,23 @@ $msgid = ControlLines::extractMsgid($rawBody);
 ```
 
 `extractMsgid()` returns the trimmed `MSGID` value, or `null`.
+
+Use `parseMessage()` when you need the structural control-line metadata:
+
+```php
+$controlLines = ControlLines::parseMessage($rawBody);
+
+$controlLines->msgid;
+$controlLines->reply;
+$controlLines->charset;
+$controlLines->seenBy;
+$controlLines->path;
+$controlLines->tearline;
+$controlLines->origin;
+$controlLines->originAddress?->toString();
+```
+
+`parseMessage()` does not convert charsets, rewrite the body, or expand abbreviated routing lines. `SEEN-BY` and `PATH` values stay raw because resolving them needs source context.
 
 ## Development
 
