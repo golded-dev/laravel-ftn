@@ -67,3 +67,41 @@ it('leaves low confidence text unchanged', function (): void {
     expect($result->changed)->toBeFalse()
         ->and($result->text)->toBe('Price 10°');
 });
+
+it('preserves spaced temperatures', function (): void {
+    $result = MojibakeRepairer::repair('20 °C');
+
+    expect($result->text)->toBe('20 °C')
+        ->and($result->changed)->toBeFalse();
+});
+
+it('repairs damage beside a literal degree', function (): void {
+    expect(MojibakeRepairer::repair('m°de at 10°')->text)->toBe('møde at 10°');
+});
+
+it('rejects repairs that discard unsupported characters', function (string $text): void {
+    $result = MojibakeRepairer::repair($text);
+
+    expect($result->text)->toBe($text)
+        ->and($result->changed)->toBeFalse()
+        ->and($result->confidence)->toBe(0.0);
+})->with(['SÃ¥dan ☃', 'Bruger m°de 🙂']);
+
+it('preserves literal degree contexts including quoted lines', function (string $text): void {
+    $result = MojibakeRepairer::repair($text);
+
+    expect($result->text)->toBe($text)
+        ->and($result->changed)->toBeFalse()
+        ->and($result->confidence)->toBe(0.0);
+})->with(['35°45', '-10°', '2°r', '20 °', "20\t°", '°C', 'ca. °F', 'ca. ° C', "°\tF", 'AB> 20 °C']);
+
+it('repairs mixed encodings without extending degree contexts', function (string $damaged, string $expected): void {
+    expect(MojibakeRepairer::repair($damaged)->text)->toBe($expected);
+})->with([
+    ['SÃ¥dan at 10°', 'Sådan at 10°'],
+    ['AB> m°de at 10°', 'AB> møde at 10°'],
+    ['m°de at 20 °C', 'møde at 20 °C'],
+    ["2\nm°de", "2\nmøde"],
+    ["2\n°l", "2\nøl"],
+    ['°Code', 'øCode'],
+]);

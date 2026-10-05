@@ -234,6 +234,13 @@ $result->confidence; // 0.0-1.0
 
 It handles DOS glyph damage, UTF-8-as-Latin-1 damage, and RFC 2047 encoded words.
 
+Literal degree signs survive repair: `20 °C` stays unchanged, while
+`m°de at 10°` becomes `møde at 10°`. A degree sign is protected after
+an ASCII digit or before uppercase C/F at a word boundary; spaces and tabs
+are allowed between them, but line breaks are not. Encoding candidates that
+cannot convert strictly are discarded, so unsupported characters such as
+emoji and snowmen are preserved.
+
 It does not decide when a UI should apply repairs, expose toggles, or rewrite stored source text. That belongs in the consuming app.
 
 ## Text Helpers
