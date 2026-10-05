@@ -4,6 +4,13 @@ Notable changes to `golded-dev/laravel-ftn`.
 
 This project uses semantic versioning.
 
+## 1.2.1 - 2026-10-05
+
+### Fixed
+
+- Preserve literal degree and temperature signs during mojibake repair, including lines with other damaged text.
+- Reject encoding candidates that discard unsupported characters such as emoji or snowmen.
+
 ## 1.2.0 - 2026-04-29
 
 ### Added
