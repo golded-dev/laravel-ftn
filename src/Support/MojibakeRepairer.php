@@ -6,6 +6,8 @@ namespace Golded\Ftn\Support;
 
 final class MojibakeRepairer
 {
+    private const string LITERAL_DEGREE = '/([0-9][ \t]*°|°[ \t]*[CF](?![A-Za-z]))/u';
+
     /**
      * @var list<string>
      */
@@ -214,7 +216,36 @@ final class MojibakeRepairer
 
     private static function reinterpret(string $text, string $visibleEncoding, string $intendedEncoding): ?string
     {
-        $bytes = @iconv('UTF-8', "{$visibleEncoding}//IGNORE", $text);
+        $parts = preg_split(self::LITERAL_DEGREE, $text, -1, PREG_SPLIT_DELIM_CAPTURE);
+
+        if ($parts === false) {
+            return null;
+        }
+
+        $candidate = '';
+
+        foreach ($parts as $index => $part) {
+            if ($index % 2 === 1 || $part === '') {
+                $candidate .= $part;
+
+                continue;
+            }
+
+            $converted = self::reinterpretPart($part, $visibleEncoding, $intendedEncoding);
+
+            if ($converted === null) {
+                return null;
+            }
+
+            $candidate .= $converted;
+        }
+
+        return $candidate;
+    }
+
+    private static function reinterpretPart(string $text, string $visibleEncoding, string $intendedEncoding): ?string
+    {
+        $bytes = self::convertStrict('UTF-8', $visibleEncoding, $text);
 
         if (! is_string($bytes) || $bytes === '') {
             return null;
@@ -224,7 +255,7 @@ final class MojibakeRepairer
             return null;
         }
 
-        $converted = @iconv($intendedEncoding, 'UTF-8//IGNORE', $bytes);
+        $converted = self::convertStrict($intendedEncoding, 'UTF-8', $bytes);
 
         if (! is_string($converted) || $converted === '') {
             return null;
@@ -233,13 +264,25 @@ final class MojibakeRepairer
         return $converted;
     }
 
+    private static function convertStrict(string $from, string $to, string $text): string|false
+    {
+        // Invalid candidates are expected; capture iconv diagnostics locally.
+        set_error_handler(static fn (): bool => true);
+
+        try {
+            return iconv($from, $to, $text);
+        } finally {
+            restore_error_handler();
+        }
+    }
+
     private static function scoreText(string $text): float
     {
         $score = 0.0;
 
         foreach (self::DAMAGE_MARKERS as $marker) {
             if ($marker === '°') {
-                preg_match_all('/(?<!\d)°(?!\d)/u', $text, $matches);
+                preg_match_all('/°/u', preg_replace(self::LITERAL_DEGREE, '', $text) ?? $text, $matches);
                 $score -= count($matches[0]) * 2.5;
 
                 continue;
