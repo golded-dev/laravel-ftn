@@ -93,8 +93,22 @@ final class MojibakeRepairer
 
         $changed = false;
         $confidence = 0.0;
+        $armourEnd = null;
 
         foreach ($lines as $index => $line) {
+            if ($armourEnd === null && preg_match('/^-----BEGIN PGP (SIGNED MESSAGE|MESSAGE|SIGNATURE|PUBLIC KEY BLOCK|PRIVATE KEY BLOCK)-----$/D', $line, $begin) === 1) {
+                $kind = $begin[1] === 'SIGNED MESSAGE' ? 'SIGNATURE' : $begin[1];
+                $armourEnd = "-----END PGP {$kind}-----";
+            }
+
+            if ($armourEnd !== null) {
+                if ($line === $armourEnd) {
+                    $armourEnd = null;
+                }
+
+                continue;
+            }
+
             if ($line === '') {
                 continue;
             }
@@ -123,9 +137,16 @@ final class MojibakeRepairer
         ?string $declaredCharset,
         bool $preferRepair,
     ): MojibakeRepairResult {
+        $byteCount = (ord($line[0]) - 32) & 63;
+
+        if ($byteCount > 0 && strlen($line) === 1 + 4 * (int) ceil($byteCount / 3)
+            && preg_match('/^[\x20-\x60]+$/', $line) === 1) {
+            return new MojibakeRepairResult($line, false, 0.0);
+        }
+
         $decodedHeader = self::decodeMimeHeader($line);
 
-        if ($decodedHeader !== null && $decodedHeader !== $line) {
+        if ($decodedHeader !== null && $decodedHeader !== $line && ! self::introducesUnsafeCharacters($line, $decodedHeader)) {
             return new MojibakeRepairResult($decodedHeader, true, 0.95);
         }
 
@@ -150,6 +171,15 @@ final class MojibakeRepairer
                 }
 
                 if ($candidate === $line) {
+                    continue;
+                }
+
+                if ($intendedEncoding !== 'UTF-8' && mb_strlen(trim($line)) > 1
+                    && preg_match('/[A-Za-z]/', $line) !== 1 && ! self::hasPlausibleCharacter($line)) {
+                    continue;
+                }
+
+                if (self::introducesUnsafeCharacters($line, $candidate)) {
                     continue;
                 }
 
@@ -214,9 +244,81 @@ final class MojibakeRepairer
         return CharsetDetector::detect("\x01CHRS: {$charset}", $charset);
     }
 
-    private static function reinterpret(string $text, string $visibleEncoding, string $intendedEncoding): ?string
+    private static function reinterpret(
+        string $text,
+        string $visibleEncoding,
+        string $intendedEncoding,
+        bool $framed = false,
+    ): ?string {
+        $framed = $framed || preg_match('/[\x{2500}-\x{259F}]/u', str_replace(['┼', '▀'], '', $text)) === 1;
+
+        if ($intendedEncoding === 'UTF-8') {
+            $utf8 = self::reinterpretSegments($text, self::LITERAL_DEGREE, $visibleEncoding, $intendedEncoding, $framed);
+
+            if ($utf8 !== null) {
+                return $utf8;
+            }
+        }
+
+        if (self::hasPlausibleCharacter($text)) {
+            $words = preg_split('/(\s+)/u', $text, -1, PREG_SPLIT_DELIM_CAPTURE);
+
+            if ($words === false) {
+                return null;
+            }
+
+            foreach ($words as $index => $word) {
+                if (self::hasPlausibleCharacter($word)) {
+                    continue;
+                }
+                if (preg_match('/[A-Za-z]/', $word) !== 1) {
+                    continue;
+                }
+                if (! str_contains($word, 'µ') && ! array_any(self::DAMAGE_MARKERS, static fn (string $marker): bool => str_contains($word, $marker))) {
+                    continue;
+                }
+
+                $candidate = self::reinterpret($word, $visibleEncoding, $intendedEncoding, $framed);
+
+                if ($candidate !== null && self::scoreText($candidate) - self::scoreText($word) >= 2.5) {
+                    $words[$index] = $candidate;
+                }
+            }
+
+            return implode('', $words);
+        }
+
+        return self::reinterpretSegments(
+            $text,
+            '/([0-9][ \t]*°|°[ \t]*[CF](?![A-Za-z])|[\x{2500}-\x{259F}]+)/u',
+            $visibleEncoding,
+            $intendedEncoding,
+            $framed,
+        );
+    }
+
+    private static function hasPlausibleCharacter(string $text): bool
     {
-        $parts = preg_split(self::LITERAL_DEGREE, $text, -1, PREG_SPLIT_DELIM_CAPTURE);
+        return array_any(self::PLAUSIBLE_CHARACTERS, static fn (string $char): bool => str_contains($text, $char));
+    }
+
+    private static function introducesUnsafeCharacters(string $original, string $candidate): bool
+    {
+        $pattern = '/[\x00-\x08\x0A-\x1F\x7F-\x{009F}\x{FFFD}]/u';
+        preg_match_all($pattern, $original, $before);
+        preg_match_all($pattern, $candidate, $after);
+        $counts = array_count_values($before[0]);
+        return array_any(array_count_values($after[0]), fn($count, $char): bool => $count > ($counts[$char] ?? 0));
+    }
+
+    private static function reinterpretSegments(
+        string $text,
+        string $pattern,
+        string $visibleEncoding,
+        string $intendedEncoding,
+        bool $framed,
+    ): ?string {
+        $parts = preg_split($pattern, $text, -1, PREG_SPLIT_DELIM_CAPTURE | PREG_SPLIT_OFFSET_CAPTURE);
 
         if ($parts === false) {
             return null;
@@ -224,8 +326,12 @@ final class MojibakeRepairer
 
         $candidate = '';
 
-        foreach ($parts as $index => $part) {
-            if ($index % 2 === 1 || $part === '') {
+        foreach ($parts as $index => [$part, $offset]) {
+            $neighbors = ($offset > 0 ? substr($text, $offset - 1, 1) : '').substr($text, $offset + strlen($part), 1);
+            $damagedLetter = ! $framed && in_array($part, ['┼', '▀'], true)
+                && preg_match('/[A-Za-z]/', $neighbors) === 1;
+
+            if (($index % 2 === 1 && ! $damagedLetter) || $part === '') {
                 $candidate .= $part;
 
                 continue;
@@ -295,6 +401,9 @@ final class MojibakeRepairer
             $score += substr_count($text, $character) * 1.5;
         }
 
+        preg_match_all('/[A-Za-z]µ(?=[A-Za-z])/u', $text, $microSigns);
+        $score -= count($microSigns[0]) * 2.5;
+
         $lower = mb_strtolower($text);
 
         foreach (self::PLAUSIBLE_WORDS as $word) {
@@ -308,13 +417,46 @@ final class MojibakeRepairer
 
     private static function decodeMimeHeader(string $line): ?string
     {
-        if (preg_match('/=\?.+\?[QB]\?.+\?=/i', $line) !== 1) {
+        if (preg_match_all('/=\?([^?\s]+)\?([QB])\?([^?]*)\?=/i', $line, $words, PREG_SET_ORDER | PREG_OFFSET_CAPTURE) === 0) {
             return null;
         }
 
-        $decoded = @iconv_mime_decode($line, ICONV_MIME_DECODE_CONTINUE_ON_ERROR, 'UTF-8');
+        $decoded = '';
+        $offset = 0;
 
-        return is_string($decoded) ? $decoded : null;
+        foreach ($words as $word) {
+            $charset = $word[1][0];
+            $payload = $word[3][0];
+            $bytes = strtoupper($word[2][0]) === 'B'
+                ? base64_decode($payload, true)
+                : quoted_printable_decode(str_replace('_', ' ', $payload));
+
+            if ($bytes === false) {
+                return null;
+            }
+
+            $part = self::convertStrict($charset, 'UTF-8', $bytes);
+
+            if ($part === false && in_array(strtoupper(str_replace('_', '-', $charset)), ['ASCII', 'US-ASCII'], true)) {
+                $part = self::convertStrict('ISO-8859-1', 'UTF-8', $bytes);
+            }
+
+            if ($part === false) {
+                return null;
+            }
+
+            $between = substr($line, $offset, $word[0][1] - $offset);
+
+            // RFC 2047 ignores whitespace only between adjacent encoded words.
+            if ($offset === 0 || trim($between) !== '') {
+                $decoded .= $between;
+            }
+
+            $decoded .= $part;
+            $offset = $word[0][1] + strlen($word[0][0]);
+        }
+
+        return $decoded.substr($line, $offset);
     }
 
     private static function isAsciiOnly(string $text): bool

@@ -4,6 +4,16 @@ Notable changes to `golded-dev/laravel-ftn`.
 
 This project uses semantic versioning.
 
+## Unreleased
+
+### Fixed
+
+- Preserve graphic frames, block art, correct words and symbol-only noise during opt-in mojibake repair.
+- Repair supported damaged words beside correct Danish/German text.
+- Reject candidates introducing controls or replacement characters, including MIME output.
+- Recover ASCII-labelled Latin-1 MIME words and preserve text outside encoded words.
+- Leave recognizable uuencode lines and PGP armour untouched during repair.
+
 ## 1.2.1 - 2026-10-05
 
 ### Fixed

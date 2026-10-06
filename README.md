@@ -33,6 +33,23 @@ Requires PHP 8.4+.
 - `ControlLines`: extracts selected FTN control lines.
 - `Text`: helper methods for null-padded fields, body normalization, encoding conversion, and synthetic IDs.
 
+Mojibake repair stays opt-in. Keep the original bytes and decoded text separately;
+confidence is a heuristic score. The helper preserves box-drawing frames, block
+art, literal degree signs and already-correct Danish/German words while repairing
+supported damage nearby. Isolated `┼`/`▀` inside words can still represent damaged
+letters; strict UTF-8 recovery can repair graphics-looking bytes such as `m├©de`.
+These rules cannot identify every graphic or corrupted line.
+
+Repair candidates cannot add C0 controls (except tab), DEL, C1 controls or
+replacement characters. ASCII-labelled MIME words may fall back to Latin-1;
+invalid UTF-8 and unknown declarations do not get that fallback. MIME decoding
+preserves ordinary text outside encoded words. Recognizable uuencode data lines
+and PGP armour regions are excluded from repair. Pass complete text for PGP
+context; separate per-line calls cannot retain that state. Line endings still
+normalize to LF, including protected regions, so output is not a byte-preserving
+copy or a signature-verification input.
+
+
 ## What You Do Not Get
 
 - No concrete message-base reader.

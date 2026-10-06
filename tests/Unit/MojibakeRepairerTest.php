@@ -105,3 +105,115 @@ it('repairs mixed encodings without extending degree contexts', function (string
     ["2\n°l", "2\nøl"],
     ['°Code', 'øCode'],
 ]);
+
+it('repairs text without reencoding its frame', function (): void {
+    $result = MojibakeRepairer::repair('─── Begrµnsning ───');
+
+    expect($result->text)->toBe('─── Begrænsning ───')
+        ->and($result->changed)->toBeTrue();
+});
+
+it('preserves correct Danish beside corrupted symbols', function (): void {
+    $text = "ikke på 240) ±‗´¯Ý\u{00AD}\u{00AD}▄█Ð·¹³²·¨°. Bag dem ved 200°.";
+    $result = MojibakeRepairer::repair($text);
+
+    expect($result->text)->toBe($text)
+        ->and($result->changed)->toBeFalse();
+});
+
+it('rejects unsafe MIME output while allowing tabs', function (string $text): void {
+    $result = MojibakeRepairer::repair($text);
+
+    expect($result->text)->toBe($text)
+        ->and($result->changed)->toBeFalse();
+})->with([
+    '=?ISO-8859-1?Q?abc=01?=',
+    '=?ISO-8859-1?Q?abc=7F?=',
+    '=?ISO-8859-1?Q?abc=86?=',
+    '=?UTF-8?B?77+9?=',
+    "\u{0086} =?ISO-8859-1?Q?abc=86?=",
+]);
+
+it('allows a decoded MIME tab', function (): void {
+    expect(MojibakeRepairer::repair('=?ISO-8859-1?Q?Ada=09S=F8rensen?=')->text)
+        ->toBe("Ada\tSørensen");
+});
+
+it('repairs damaged words beside correct words', function (): void {
+    $result = MojibakeRepairer::repair('Søren skrev om s°getid i går');
+
+    expect($result->text)->toBe('Søren skrev om søgetid i går')
+        ->and($result->changed)->toBeTrue();
+});
+
+it('recovers mislabelled ASCII MIME without guessing other charsets', function (): void {
+    $result = MojibakeRepairer::repair('=?US-ASCII?Q?p=E5?= mandag');
+
+    expect($result->text)->toBe('på mandag')
+        ->and($result->changed)->toBeTrue()
+        ->and($result->confidence)->toBe(0.95);
+
+    foreach (['=?UTF-8?Q?p=E5?= mandag', '=?UNKNOWN?Q?p=E5?= mandag', '=?US-ASCII?Q?p=86?= mandag'] as $text) {
+        expect(MojibakeRepairer::repair($text)->text)->toBe($text);
+    }
+});
+
+it('leaves uuencoded payload intact even when it resembles MIME', function (): void {
+    $text = str_pad('M=?ISO-8859-1?Q?=E5?=', 61, 'A');
+    $result = MojibakeRepairer::repair($text);
+
+    expect($result->text)->toBe($text)
+        ->and($result->changed)->toBeFalse();
+});
+
+it('preserves PGP armour while repairing surrounding text', function (): void {
+    $text = "Vi ses pÕ m°det\n-----BEGIN PGP SIGNED MESSAGE-----\nHash: SHA256\n\n"
+        ."Vi ses pÕ m°det\n-----BEGIN PGP SIGNATURE-----\n=?ISO-8859-1?Q?=E5?=\n"
+        ."-----END PGP SIGNATURE-----\nBruger m°de";
+    $expected = "Vi ses på mødet\n-----BEGIN PGP SIGNED MESSAGE-----\nHash: SHA256\n\n"
+        ."Vi ses pÕ m°det\n-----BEGIN PGP SIGNATURE-----\n=?ISO-8859-1?Q?=E5?=\n"
+        ."-----END PGP SIGNATURE-----\nBruger møde";
+
+    expect(MojibakeRepairer::repair($text)->text)->toBe($expected);
+});
+
+it('leaves symbol-only noise unchanged', function (): void {
+    $text = "±‗´¯Ý\u{00AD}\u{00AD}Ð·¹³²·¨°";
+    $result = MojibakeRepairer::repair($text);
+
+    expect($result->text)->toBe($text)
+        ->and($result->changed)->toBeFalse()
+        ->and($result->confidence)->toBe(0.0);
+});
+
+it('preserves reported art and correct text', function (string $text): void {
+    $result = MojibakeRepairer::repair($text);
+
+    expect($result->text)->toBe($text)
+        ->and($result->changed)->toBeFalse()
+        ->and($result->confidence)->toBe(0.0);
+})->with([
+    '────────────────────────────────',
+    '┌──────────┬──────────┐',
+    '█▄▀',
+    '─ (Dan) Til/fra Sysop (2:231/116) ───────── SYSOP116 ─',
+    '█ -[/] ¯ViL U´CL¯ Õ GRåVeDiGGeR Õ ALCATRAZ [\\]- █',
+    '█ Foo▀ GRå █',
+    '│ Medlemsmøde på torsdag │',
+    'Det var 20 °C i går',
+    '10 µm',
+]);
+
+it('preserves MIME surrounding text and adjacent encoded words', function (): void {
+    expect(MojibakeRepairer::repair('Søren: =?ISO-8859-1?Q?Ada?= =?ISO-8859-1?Q?_S=F8rensen?=')->text)
+        ->toBe('Søren: Ada Sørensen');
+});
+
+it('recovers UTF-8 displayed using DOS glyphs', function (): void {
+    expect(MojibakeRepairer::repair('Bruger m├©de', 'IBMPC')->text)->toBe('Bruger møde');
+});
+
+it('decodes base64 MIME and leaves invalid payloads intact', function (): void {
+    expect(MojibakeRepairer::repair('=?UTF-8?B?bcO4ZGU=?=')->text)->toBe('møde')
+        ->and(MojibakeRepairer::repair('=?UTF-8?B?!!!?=')->text)->toBe('=?UTF-8?B?!!!?=');
+});
