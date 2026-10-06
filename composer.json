@@ -22,7 +22,9 @@
         "source": "https://github.com/golded-dev/laravel-ftn"
     },
     "require": {
-        "php": "^8.4"
+        "php": "^8.4",
+        "ext-iconv": "*",
+        "ext-mbstring": "*"
     },
     "require-dev": {
         "odinns/coding-style": "^1.0.1",

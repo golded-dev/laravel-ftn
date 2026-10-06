@@ -4,10 +4,16 @@ Notable changes to `golded-dev/laravel-ftn`.
 
 This project uses semantic versioning.
 
-## Unreleased
+## 1.2.2 - 2026-10-06
+
+### Added
+
+- Recognize historical GoldED+ Cyrillic charset aliases for CP866, KOI8-R, CP1251, KOI8-U and CP1125 in CHRS and CHARSET declarations.
 
 ### Fixed
 
+- Declare the existing mbstring and iconv runtime requirements so Composer rejects unsupported installations.
+- Decode CP437 and CP1125 with iconv where mbstring does not support them, preserving trailing-null trimming.
 - Preserve graphic frames, block art, correct words and symbol-only noise during opt-in mojibake repair.
 - Repair supported damaged words beside correct Danish/German text.
 - Reject candidates introducing controls or replacement characters, including MIME output.

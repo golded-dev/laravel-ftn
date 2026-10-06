@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Golded\Ftn\Support;
 
+use ValueError;
+
 final class Text
 {
     public static function parseBody(string $raw): string
@@ -15,7 +17,23 @@ final class Text
 
     public static function toUtf8(string $value, string $charset = 'CP850'): string
     {
-        $converted = mb_convert_encoding(rtrim($value, "\x00"), 'UTF-8', $charset);
+        $value = rtrim($value, "\x00");
+
+        try {
+            $converted = mb_convert_encoding($value, 'UTF-8', $charset);
+        } catch (ValueError $error) {
+            $iconvCharset = match (strtoupper($charset)) {
+                'CP437', 'IBM437' => 'CP437',
+                'CP1125' => 'CP1125',
+                default => null,
+            };
+
+            if ($iconvCharset === null) {
+                throw $error;
+            }
+
+            $converted = iconv($iconvCharset, 'UTF-8', $value);
+        }
 
         return $converted === false ? '' : $converted;
     }

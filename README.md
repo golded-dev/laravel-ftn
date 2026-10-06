@@ -12,7 +12,8 @@ It does not read Squish, JAM, Hudson, or any other message base by itself. That 
 composer require golded-dev/laravel-ftn:^1.0
 ```
 
-Requires PHP 8.4+.
+Requires PHP 8.4+ with the `mbstring` and `iconv` extensions. Composer checks
+these runtime requirements during installation.
 
 ## What You Get
 
@@ -226,6 +227,25 @@ $charset = CharsetDetector::detect("\x01CHRS: LATIN-1 2\nBody");
 
 // ISO-8859-1
 ```
+
+Historical Cyrillic names used by GoldED+ are accepted by both `CHRS` and
+`CHARSET` detection, without regard to case:
+
+| Declared aliases | Detected charset |
+| --- | --- |
+| `CP-866`, `+7FIDO`, `+7_FIDO`, `FIDO7`, `FIDO_7`, `RUS` | `CP866` |
+| `KOI`, `KOI8`, `GOST`, `CP20866` | `KOI8-R` |
+| `WIN`, `WIN-1251`, `WINDOWS-1251`, `CP-1251` | `CP1251` |
+| `KOI8-U`, `KOI8U`, `KOU`, `KOI-U`, `CP21866` | `KOI8-U` |
+| `CP1125`, `UKR` | `CP1125` |
+
+These mappings follow [GoldED+ advanced.cfg](https://github.com/golded-plus/golded-plus/blob/1a251c6375081453a410bb8d647be120b8902de3/cfgs/config/advanced.cfg#L1497).
+`IBMPC` still resolves to `CP850`, which also remains the default fallback.
+Use the detected charset with `Text::toUtf8()` to decode the source bytes.
+For CP437/IBM437 and CP1125, the helper uses iconv if mbstring rejects the
+encoding name. These names are case-insensitive. Other encodings keep existing
+mbstring behavior, including substitution on invalid input. Trailing null
+padding is removed before decoding.
 
 Unknown charset names use the configured fallback:
 
